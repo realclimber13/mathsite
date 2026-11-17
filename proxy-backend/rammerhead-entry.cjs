@@ -20,7 +20,7 @@ proxy.addToOnRequestPipeline(async(req,res,_info,isRoute)=>{
  if(req.url==='/healthz')return;
  if(!authorized(req))return forbidden(res,'This engine is available only through the Mathsite ChatGPT Site.');
  delete req.headers['x-mathsite-backend-token'];
- for(const key of Object.keys(req.headers))if(key.startsWith('oai-')||key==='authorization'||key==='x-forwarded-for'||key==='x-real-ip')delete req.headers[key];
+ for(const key of Object.keys(req.headers))if(key.startsWith('oai-')||key==='x-forwarded-for'||key==='x-real-ip')delete req.headers[key];
  if(!isRoute){const destination=parseProxyUrl(req.url);if(destination){try{const url=new URL(destination.destUrl);if(!['http:','https:','ws:','wss:'].includes(url.protocol)||!['','80','443'].includes(url.port))return forbidden(res,'Unsupported destination.');const addresses=await dns.lookup(url.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivate(x.address)))return forbidden(res,'Private network destinations are unavailable.');}catch{return forbidden(res,'Destination could not be resolved.')}}}
 },true);
 proxy.GET('/healthz',(_req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({status:'ok',engine:'rammerhead',upstream:'binary-person/rammerhead',ui:false}))});
