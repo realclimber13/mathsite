@@ -12,6 +12,9 @@ if(site.protocol!=='https:')throw Error('SITE_ORIGIN must use HTTPS');
 const proxy=new RammerheadProxy({bindingAddress:'0.0.0.0',port:Number(process.env.PORT||8080),crossDomainPort:0,
  getServerInfo:()=>({hostname:site.hostname,port:443,crossDomainPort:443,protocol:'https:'}),
  jsCache:new RammerheadJSMemCache(24*1024*1024),disableHttp2:false,requestTimeoutPage:45000,requestTimeoutAjax:60000,stuckRequestTimeout:90000});
+// Preserve Hammerhead's control WebSocket server when rewriting the public origin.
+const rewriteInfo=proxy._rewriteServerInfo.bind(proxy);
+proxy._rewriteServerInfo=req=>({...rewriteInfo(req),wss:proxy.wss1});
 const sessions=new RammerheadSessionMemoryStore({staleTimeout:30*60*1000,maxToLive:8*60*60*1000});sessions.attachToProxy(proxy);
 function authorized(req){const actual=Buffer.from(req.headers['x-mathsite-backend-token']||'');const expected=Buffer.from(token);return actual.length===expected.length&&timingSafeEqual(actual,expected)}
 function forbidden(res,msg){if(res.writeHead)res.writeHead(403,{'Content-Type':'text/plain','Cache-Control':'no-store'});res.end(msg);return true}
