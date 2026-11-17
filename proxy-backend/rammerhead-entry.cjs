@@ -26,6 +26,16 @@ proxy.addToOnRequestPipeline(async(req,res,_info,isRoute)=>{
  for(const key of Object.keys(req.headers))if(key.startsWith('oai-')||key==='x-forwarded-for'||key==='x-real-ip')delete req.headers[key];
  if(!isRoute){const destination=parseProxyUrl(req.url);if(destination){try{const url=new URL(destination.destUrl);if(!['http:','https:','ws:','wss:'].includes(url.protocol)||!['','80','443'].includes(url.port))return forbidden(res,'Unsupported destination.');const addresses=await dns.lookup(url.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivate(x.address)))return forbidden(res,'Private network destinations are unavailable.');}catch{return forbidden(res,'Destination could not be resolved.')}}}
 },true);
+// Rammerhead rejects WebSocket upgrades on HTTP routes; bridge Hammerhead's
+// control channel explicitly so asynchronous page requests do not stall.
+const originalUpgrade=proxy._onUpgradeRequest.bind(proxy);
+proxy._onUpgradeRequest=async(req,socket,head,info)=>{
+ if(req.url.split('?')[0]==='/messaging'){
+  if(!authorized(req)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');return;}
+  proxy.wss1.handleUpgrade(req,socket,head,client=>proxy._onServiceWebSocketConnection(client,proxy._rewriteServerInfo(req)));return;
+ }
+ return originalUpgrade(req,socket,head,info);
+};
 proxy.GET('/healthz',(_req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({status:'ok',engine:'rammerhead',upstream:'binary-person/rammerhead',ui:false}))});
 proxy.POST('/api/session',(_req,res)=>{if(sessions.keys().length>=100){res.writeHead(429);return res.end('Session limit reached. Close older sessions and retry later.')}const id=generateId();const session=sessions.add(id);session.shuffleDict=null;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify({id,engine:'rammerhead'}))});
 proxy.GET('/',(_req,res)=>{res.writeHead(404,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Backend only. Open the Mathsite ChatGPT Site.'}))});
